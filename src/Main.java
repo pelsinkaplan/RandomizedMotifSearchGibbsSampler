@@ -1,19 +1,44 @@
 import java.io.*;
+import java.lang.invoke.SwitchPoint;
 
 public class Main {
 
-    private static int[] indexOfKMers = new int[10];
+    private static String[] Motifs = new String[10];
+    private static int Score = 0;
+    private static int Iteration = 0;
+    private static String deletedMotif = "";
+    private static int deletedMotifIndex;
+    private static String ConsensusString = "burda bi sorun var";
 
     public static void main(String[] args) {
-        //WriteFile();
+//        CreateFile();
         String[] DNA = ReadFile();
-        for (int i = 0; i < DNA.length; i++) {
-            System.out.println(DNA[i]);
+        for (int k = 9; k < 12; k++) {
+
+            RandomizedMotifSearch(DNA, k);
+            if (k == 9)
+                System.out.println("-----------\n|  k = " + k + "  |\n-----------");
+            else
+                System.out.println("------------\n|  k = " + k + "  |\n------------");
+            System.out.println("\nRANDOMIZED MOTIF SEARCH\n-----------------------\n\nMotifs :");
+            for (int i = 0; i < 10; i++) {
+                System.out.println(Motifs[i]);
+            }
+            System.out.println("\nScore : " + Score + "\nConsensus String : " + ConsensusString);
+            GibbsSampler(DNA, k);
+            System.out.println("\nGIBBS SAMPLER\n-------------\n\nMotifs :");
+            for (int i = 0; i < 10; i++) {
+                System.out.println(Motifs[i]);
+            }
+            System.out.println("\nScore : " + Score + "\nConsensus String : " + ConsensusString);
+            System.out.println("-----------------------------------------------------------------------");
         }
-        RandomizedMotifSearch(DNA, 10);
+
+
     }
 
-    public static void WriteFile() {
+    /*    READ WRITE    */
+    public static void CreateFile() {
 
         String str = "";
         for (int i = 0; i < 10; i++) {
@@ -32,8 +57,6 @@ public class Main {
             }
             allTenMers[i] = mutationStr;
         }
-
-        //String oldStr = str;
         for (int i = 0; i < 10; i++) {
             int index = (int) (Math.random() * 490);
             System.out.print(allTenMers[i] + " ");
@@ -61,7 +84,6 @@ public class Main {
         }
     }
 
-
     public static String[] ReadFile() {
         String[] motifs = new String[10];
         BufferedReader reader;
@@ -83,138 +105,255 @@ public class Main {
         return motifs;
     }
 
+    /*    ALGORITHMS   */
 
     public static void RandomizedMotifSearch(String[] DNA, int k) {
-        String[] motifStrings = new String[10];
-        int[] indexs = new int[10];
-        int[] bestIndexs;
-        for (int i = 0; i < 10; i++) {
-            int a = (int) (Math.random() * (500 - k));
-            motifStrings[i] = DNA[i].substring(a, a + k);
-            indexs[i] = a;
-        }
-        String[] bestMotifStrings = motifStrings.clone();
-
-        int[][] motifs;
-        double[][] profile;
-        int[][] bestMotifs;
-        double[][] bestProfile;
+        String[] motifs = selectRandomMotifs(DNA, k);
+        String[] bestMotifs = motifs.clone();
+        int iteration = 0;
         int counter = 0;
         while (true) {
-            bestMotifs = Motifs(bestMotifStrings);
-            bestProfile = Profile(bestMotifs);
-            bestIndexs = UseProfileInDNA(bestProfile, DNA, k);
-
-            for (int i = 0; i < 10; i++)
-                motifStrings[i] = DNA[i].substring(indexs[i], indexs[i] + k);
-            motifs = Motifs(motifStrings);
-            profile = Profile(motifs);
-            indexs = UseProfileInDNA(profile, DNA, k);
-
-            if (ScoreAllMotifs(motifStrings, profile) < ScoreAllMotifs(bestMotifStrings, bestProfile)) {
-                bestMotifStrings = motifStrings.clone();
-                bestIndexs = indexs;
-            } else
-//                counter++;
-//            if (counter > 50)
+            iteration++;
+            double[][] profile = calculateProfile(motifs, k);
+            motifs = selectNewMotifs(DNA, profile, k);
+            int motifScore = calculateScore(motifs, k);
+            int bestMotifScore = calculateScore(bestMotifs, k);
+            if (motifScore <= bestMotifScore) {
+                bestMotifs = motifs.clone();
+                if (motifScore == bestMotifScore)
+                    counter++;
+                if (counter > 50) {
+                    Motifs = bestMotifs;
+                    Score = bestMotifScore;
+                    Iteration = iteration;
+                    ConsensusString = getConsensusString(Motifs, profile, k);
+                    break;
+                }
+            } else {
+                Motifs = bestMotifs;
+                Score = bestMotifScore;
+                Iteration = iteration;
+                ConsensusString = getConsensusString(Motifs, profile, k);
                 break;
+            }
         }
-        for (int i = 0; i < 10; i++) {
-            System.out.println(bestMotifStrings[i] + " " + bestIndexs[i]);
-        }
+
     }
 
-    public static double Score(String motif, double[][] profile) {
-        double score = 1;
-        for (int i = 0; i < motif.length(); i++) {
-            if (motif.charAt(i) == 'a') {
-                score *= profile[0][i];
-            } else if (motif.charAt(i) == 'c') {
-                score *= profile[1][i];
-            } else if (motif.charAt(i) == 'g') {
-                score *= profile[2][i];
-            } else if (motif.charAt(i) == 't') {
-                score *= profile[3][i];
+    public static void GibbsSampler(String[] DNA, int k) {
+        String[] motifs = selectRandomMotifs(DNA, k);
+        int iteration = 0;
+        int counter = 0;
+        while (true) {
+            iteration++;
+            int scoreMotifs = calculateScore(motifs, k);
+            String[] newMotifsDeletedOne = deleteRandomMotif(motifs);
+            double[][] profile = calculateProfileGibbs(newMotifsDeletedOne, k);
+            String newMotif = selectMotifFromDeletedLine(DNA, k, profile);
+            String[] newMotifs = putNewMotifToMotifs(newMotifsDeletedOne, newMotif);
+            int scoreNewMotifs = calculateScore(newMotifs, k);
+            if (scoreMotifs >= scoreNewMotifs) {
+                motifs = newMotifs;
+                if (scoreMotifs == scoreNewMotifs)
+                    counter++;
+                if (counter > 50) {
+                    Iteration = iteration;
+                    Score = scoreNewMotifs;
+                    Motifs = newMotifs;
+                    ConsensusString = getConsensusString(Motifs, profile, k);
+                    break;
+                }
+            } else {
+                Iteration = iteration;
+                Score = scoreNewMotifs;
+                Motifs = newMotifs;
+                ConsensusString = getConsensusString(Motifs, profile, k);
+                break;
             }
-            if (score == 0)
-                return 0;
+
+        }
+
+    }
+
+    /*    OTHER METHODS   */
+
+    public static String[] putNewMotifToMotifs(String[] motifs, String newMotif) {
+        String[] newMotifs = new String[10];
+        for (int i = 0; i < 10; i++) {
+            if (i < deletedMotifIndex) {
+                newMotifs[i] = motifs[i];
+            } else if (deletedMotifIndex < i) {
+                newMotifs[i] = motifs[i - 1];
+            } else {
+                newMotifs[i] = newMotif;
+            }
+        }
+        return newMotifs;
+    }
+
+    public static String selectMotifFromDeletedLine(String[] DNA, int k, double[][] profile) {
+        String deletedDNA = DNA[deletedMotifIndex];
+        double maxProb = 0;
+        int index = 0;
+        for (int i = 0; i < 500 - k; i++) {
+            String motif = deletedDNA.substring(i, i + k);
+            double prob = calculateProfileScore(motif, profile);
+            if (prob > maxProb) {
+                maxProb = prob;
+                index = i;
+            }
+        }
+        String newMotif = deletedDNA.substring(index, index + k);
+        return newMotif;
+    }
+
+    public static String[] deleteRandomMotif(String[] motifs) {
+        String[] newMotifs = new String[9];
+        int a = (int) (Math.random() * 10);
+        deletedMotif = motifs[a];
+        deletedMotifIndex = a;
+        for (int i = 0, k = 0; i < motifs.length; i++) {
+            if (i == a) {
+                continue;
+            }
+            newMotifs[k++] = motifs[i];
+        }
+        return newMotifs;
+    }
+
+    public static int calculateScore(String[] motifs, int k) {
+        int score = 0;
+        for (int i = 0; i < k; i++) {
+            int a = 0, c = 0, g = 0, t = 0;
+            for (int j = 0; j < 10; j++) {
+                if (motifs[j].charAt(i) == 'a')
+                    a++;
+                else if (motifs[j].charAt(i) == 'c')
+                    c++;
+                else if (motifs[j].charAt(i) == 'g')
+                    g++;
+                else if (motifs[j].charAt(i) == 't')
+                    t++;
+            }
+            int max = Math.max(Math.max(a, c), Math.max(g, t));
+            score += 10 - max;
         }
         return score;
     }
 
-    public static double ScoreAllMotifs(String[] motifs, double[][] profile) {
-        double sumScore = 0;
-        double score = 1;
-        for (int j = 0; j < 10; j++) {
-            for (int i = 0; i < motifs[j].length(); i++) {
-                if (motifs[j].charAt(i) == 'a') {
-                    score *= profile[0][i];
-                } else if (motifs[j].charAt(i) == 'c') {
-                    score *= profile[1][i];
-                } else if (motifs[j].charAt(i) == 'g') {
-                    score *= profile[2][i];
-                } else if (motifs[j].charAt(i) == 't') {
-                    score *= profile[3][i];
-                }
-                if (score == 0)
-                    break;
-            }
-            sumScore += score;
-        }
-        return sumScore;
-    }
-
-    public static int[][] Motifs(String[] motifStrings) {
-        int[][] motifs = new int[4][10];
+    public static String[] selectNewMotifs(String[] DNA, double[][] profile, int k) {
+        String[] newMotifs = new String[10];
         for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 10; j++) {
-                if (motifStrings[i].charAt(j) == 'a') {
-                    motifs[0][j]++;
-                } else if (motifStrings[i].charAt(j) == 'c') {
-                    motifs[1][j]++;
-                } else if (motifStrings[i].charAt(j) == 'g') {
-                    motifs[2][j]++;
-                } else if (motifStrings[i].charAt(j) == 't') {
-                    motifs[3][j]++;
+            double max = 0;
+            String motif = "";
+            for (int j = 0; j < 500 - k; j++) {
+                double calculatedProfile = calculateProfileScore(DNA[i].substring(j, j + k), profile);
+                if (calculatedProfile > max) {
+                    max = calculatedProfile;
+                    motif = DNA[i].substring(j, j + k);
                 }
             }
+            newMotifs[i] = motif;
         }
-        return motifs;
+        return newMotifs;
     }
 
-    public static double[][] Profile(int[][] motifs) {
-        double[][] profile = new double[4][10];
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 10; j++) {
-                profile[i][j] = (double) motifs[i][j] / (double) 10;
+    public static double calculateProfileScore(String motif, double[][] profile) {
+        double profileScore = 1;
+        for (int i = 0; i < motif.length(); i++) {
+            if (motif.charAt(i) == 'a')
+                profileScore *= profile[0][i];
+            else if (motif.charAt(i) == 'c')
+                profileScore *= profile[1][i];
+            else if (motif.charAt(i) == 'g')
+                profileScore *= profile[2][i];
+            else if (motif.charAt(i) == 't')
+                profileScore *= profile[3][i];
+            if (profileScore == 0)
+                break;
+        }
+        return profileScore;
+    }
+
+    public static double[][] calculateProfile(String[] motifs, int k) {
+        double[][] profile = new double[4][k];
+        for (int i = 0; i < k; i++) {
+            int a = 0, c = 0, g = 0, t = 0;
+            for (String motif : motifs) {
+                if (motif.charAt(i) == 'a')
+                    a++;
+                else if (motif.charAt(i) == 'c')
+                    c++;
+                else if (motif.charAt(i) == 'g')
+                    g++;
+                else if (motif.charAt(i) == 't')
+                    t++;
             }
+            profile[0][i] = (double) a / 10;
+            profile[1][i] = (double) c / 10;
+            profile[2][i] = (double) g / 10;
+            profile[3][i] = (double) t / 10;
         }
         return profile;
     }
 
-    public static int[] UseProfileInDNA(double[][] profile, String[] DNA, int k) {
-        int[] indexs = new int[10];
-        double score = 0;
-        for (int i = 0; i < 10; i++) {
-            int counter = 0;
-            while (counter < 500 - k) {
-                String controlKMer = DNA[i].substring(counter, counter + k);
-                double newScore = Score(controlKMer, profile);
-                if (newScore > score) {
-                    score = newScore;
-                    indexs[i] = counter;
-                }
-                counter++;
+    public static double[][] calculateProfileGibbs(String[] motifs, int k) {
+        double[][] profile = new double[4][k];
+        for (int i = 0; i < k; i++) {
+            int a = 1, c = 1, g = 1, t = 1;
+            for (String motif : motifs) {
+                if (motif.charAt(i) == 'a')
+                    a++;
+                else if (motif.charAt(i) == 'c')
+                    c++;
+                else if (motif.charAt(i) == 'g')
+                    g++;
+                else if (motif.charAt(i) == 't')
+                    t++;
             }
+            double divide = motifs.length + 4;
+            profile[0][i] = (double) a / divide;
+            profile[1][i] = (double) c / divide;
+            profile[2][i] = (double) g / divide;
+            profile[3][i] = (double) t / divide;
         }
-        return indexs;
+        return profile;
     }
 
+    public static String[] selectRandomMotifs(String[] DNA, int k) {
+        String[] motifs = new String[10];
+        for (int i = 0; i < 10; i++) {
+            int random = (int) (Math.random() * (500 - k));
+            motifs[i] = DNA[i].substring(random, random + k);
+        }
+        return motifs;
+    }
+
+    public static String generateRandomNucleotide() {
+        String nucleotid = "";
+        int a = (int) (Math.random() * 4);
+        switch (a) {
+            case 0:
+                nucleotid = "a";
+                break;
+            case 1:
+                nucleotid = "g";
+                break;
+            case 2:
+                nucleotid = "t";
+                break;
+            case 3:
+                nucleotid = "c";
+                break;
+            default:
+        }
+        return nucleotid;
+    }
 
     public static String createTenMer() {
         String str = "";
         for (int i = 0; i < 10; i++) {
-            str = str + generateRandomNucleotid();
+            str = str + generateRandomNucleotide();
         }
         return str;
     }
@@ -222,7 +361,7 @@ public class Main {
     public static String createRandomString() {
         String str = "";
         for (int i = 0; i < 500; i++) {
-            str = str + generateRandomNucleotid();
+            str = str + generateRandomNucleotide();
         }
         return str;
 
@@ -230,7 +369,7 @@ public class Main {
 
     public static String Mutation(String str, int index) {
         while (true) {
-            String nucleotid = generateRandomNucleotid();
+            String nucleotid = generateRandomNucleotide();
             if (nucleotid.charAt(0) != str.charAt(index)) {
                 str = str.substring(0, index) + nucleotid + str.substring(index + 1);
                 break;
@@ -253,25 +392,32 @@ public class Main {
         return indexs;
     }
 
-    public static String generateRandomNucleotid() {
-        String nucleotid = "";
-        int a = (int) (Math.random() * 4);
-        switch (a) {
-            case 0:
-                nucleotid = "a";
-                break;
-            case 1:
-                nucleotid = "g";
-                break;
-            case 2:
-                nucleotid = "t";
-                break;
-            case 3:
-                nucleotid = "c";
-                break;
-            default:
+    public static String getConsensusString(String[] motifs, double[][] profile, int k) {
+        String consensusString = "";
+        for (int i = 0; i < k; i++) {
+            int a = 0, c = 0, g = 0, t = 0;
+            for (int j = 0; j < 10; j++) {
+                if (motifs[j].charAt(i) == 'a')
+                    a++;
+                else if (motifs[j].charAt(i) == 'c')
+                    c++;
+                else if (motifs[j].charAt(i) == 'g')
+                    g++;
+                else if (motifs[j].charAt(i) == 't')
+                    t++;
+            }
+            int max = Math.max(Math.max(a, c), Math.max(g, t));
+            if (a == max)
+                consensusString += "a";
+            else if (c == max)
+                consensusString += "c";
+            else if (g == max)
+                consensusString += "g";
+            else if (t == max)
+                consensusString += "t";
+            else
+                consensusString += "?";
         }
-        return nucleotid;
+        return consensusString;
     }
-
 }
