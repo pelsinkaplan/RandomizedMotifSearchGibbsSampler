@@ -13,28 +13,28 @@ public class Main {
     public static void main(String[] args) {
 //        CreateFile();
         String[] DNA = ReadFile();
-        for (int k = 9; k < 12; k++) {
+        for (int m = 0; m < 10; m++) {
+            for (int k = 9; k < 12; k++) {
 
-            RandomizedMotifSearch(DNA, k);
-            if (k == 9)
-                System.out.println("-----------\n|  k = " + k + "  |\n-----------");
-            else
-                System.out.println("------------\n|  k = " + k + "  |\n------------");
-            System.out.println("\nRANDOMIZED MOTIF SEARCH\n-----------------------\n\nMotifs :");
-            for (int i = 0; i < 10; i++) {
-                System.out.println(Motifs[i]);
+                RandomizedMotifSearch(DNA, k);
+                if (k == 9)
+                    System.out.println("-----------\n|  k = " + k + "  |\n-----------");
+                else
+                    System.out.println("------------\n|  k = " + k + "  |\n------------");
+                System.out.println("\nRANDOMIZED MOTIF SEARCH\n-----------------------\n\nMotifs :");
+                for (int i = 0; i < 10; i++) {
+                    System.out.println(Motifs[i]);
+                }
+                System.out.println("\nScore : " + Score + "\nConsensus String : " + ConsensusString);
+                GibbsSampler(DNA, k);
+                System.out.println("\nGIBBS SAMPLER\n-------------\n\nMotifs :");
+                for (int i = 0; i < 10; i++) {
+                    System.out.println(Motifs[i]);
+                }
+                System.out.println("\nScore : " + Score + "\nConsensus String : " + ConsensusString);
+                System.out.println("-----------------------------------------------------------------------");
             }
-            System.out.println("\nScore : " + Score + "\nConsensus String : " + ConsensusString);
-            GibbsSampler(DNA, k);
-            System.out.println("\nGIBBS SAMPLER\n-------------\n\nMotifs :");
-            for (int i = 0; i < 10; i++) {
-                System.out.println(Motifs[i]);
-            }
-            System.out.println("\nScore : " + Score + "\nConsensus String : " + ConsensusString);
-            System.out.println("-----------------------------------------------------------------------");
         }
-
-
     }
 
     /*    READ WRITE    */
@@ -110,8 +110,7 @@ public class Main {
     public static void RandomizedMotifSearch(String[] DNA, int k) {
         String[] motifs = selectRandomMotifs(DNA, k);
         String[] bestMotifs = motifs.clone();
-        int iteration = 0;
-        int counter = 0;
+        int iteration = 0, counter = 0;
         while (true) {
             iteration++;
             double[][] profile = calculateProfile(motifs, k);
